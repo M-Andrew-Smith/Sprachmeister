@@ -1,20 +1,21 @@
 <script lang="ts">
+    import WordWrapper from '$lib/features/reader/WordWrapper.svelte';
+    import type { PageData } from './$types';
+
+    export let data: PageData;
 </script>
 
-<div class="reader-layout">
-    <main class="story-container">
-        <header>
-            <a href="/dashboard/read"><button>Back</button></a>
-            <h1>Article Title Placeholder</h1>
-        </header>
+<main>
+    {#if data.article}
+        <section class="reader-area">
+            {#each data.article.paragraphs as para}
+                <div class="paragraph">
+                    <WordWrapper text={para} />
+                </div>
+            {/each}
+        </section>
+    {:else}
+        <p>Artikel wird geladen...</p>
+    {/if}
+</main>
 
-        <article class="content-box">
-            <p>Large German text block goes here...</p>
-        </article>
-    </main>
-
-    <aside class="recent-words-box">
-        <h3>Recent Word Bank</h3>
-        <a href="/dashboard/vocab"><button>View Full Bank</button></a>
-    </aside>
-</div>
