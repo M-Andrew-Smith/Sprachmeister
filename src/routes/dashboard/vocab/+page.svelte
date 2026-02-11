@@ -4,49 +4,44 @@
     import { handleSmartAdd } from '$lib/features/vocabulary/AddWord';
     import { GroupManager } from '$lib/features/vocabulary/GroupManager';
     import { selectedStudyGroupId, activeMode } from '$lib/stores/StudyStore';
+    import { goto } from '$app/navigation'; // REQUIRED FOR NAVIGATION
+    
+    // UI Components
+    import * as Card from "$lib/components/ui/card";
+    import { Button } from "$lib/components/ui/button";
+    import { Input } from "$lib/components/ui/input";
+    import { Badge } from "$lib/components/ui/badge";
+    import { Search, Plus, Trash2, Play, Layers, SpellCheck, CheckCircle2 } from "lucide-svelte";
+    
+    let wordInput = $state('');
+    let searchQuery = $state('');
+    let loading = $state(false);
+    let activeGroupId = $state('all'); 
+    let newGroupName = $state('');
 
-    let wordInput = '';
-    let searchQuery = '';
-    let loading = false;
-    let activeGroupId = 'all'; 
-    let newGroupName = '';
-    let confirmingDeleteId: string | null = null;
-
-    let manager = new GroupManager(() => {
-        manager = manager; 
+    // Svelte 5: Use a stable instance of the manager
+    const manager = new GroupManager(() => {
+        // This callback helps trigger UI updates if GroupManager 
+        // uses internal non-runes state, though SvelteSet is preferred.
     });
 
-    $: filteredWords = $vocabStore.filter(word => {
+    // Filtering logic
+    let filteredWords = $derived($vocabStore.filter(word => {
         const matchesSearch = word.german.toLowerCase().includes(searchQuery.toLowerCase()) ||
                              word.english.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesGroup = activeGroupId === 'all' || word.groupIds?.includes(activeGroupId);
         return matchesSearch && matchesGroup;
-    });
+    }));
 
-    function launch(mode: 'flashcards' | 'quiz' | 'spelling') {
+    // FIXED: Added navigation to the practice page
+    async function launch(mode: 'flashcards' | 'quiz' | 'spelling') {
         selectedStudyGroupId.set(activeGroupId);
         activeMode.set(mode);
-    }
-
-    function handleSaveGroup() {
-        if (!newGroupName.trim()) return;
-        manager.saveToGroup(newGroupName);
-        newGroupName = '';
-    }
-
-    function initiateDelete(id: string) {
-        confirmingDeleteId = id;
-        setTimeout(() => { if (confirmingDeleteId === id) confirmingDeleteId = null; }, 3000);
-    }
-
-    function finalizeDelete(id: string) {
-        manager.deleteGroup(id);
-        if (activeGroupId === id) activeGroupId = 'all';
-        confirmingDeleteId = null;
+        await goto('/dashboard/vocab/practice'); 
     }
 
     async function submit() {
-        if (!wordInput) return;
+        if (!wordInput.trim()) return;
         loading = true;
         await handleSmartAdd(wordInput);
         wordInput = '';
@@ -54,130 +49,152 @@
     }
 </script>
 
-<div class="vocab-dashboard">
-    <header>
-        <h1>My Vocabulary Hub ({$targetLanguage})</h1>
-        <p>Manage your collected words and prepare for practice sessions.</p>
+<div class="p-8 max-w-7xl mx-auto space-y-8 bg-background min-h-screen">
+    
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div class="space-y-1">
+            <h1 class="text-4xl font-extrabold tracking-tight">Vocabulary Hub <span class="text-blue-600">({$targetLanguage})</span></h1>
+            <p class="text-muted-foreground font-medium">Manage your collection and prepare for battle.</p>
+        </div>
     </header>
 
-    <div class="action-section">
-        <div class="search-box">
-            <input type="text" bind:value={searchQuery} placeholder="Search your words..." />
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="md:col-span-2 relative">
+            <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input class="pl-10 h-12 bg-white" placeholder="Search words..." bind:value={searchQuery} />
         </div>
-        <div class="add-manual-box">
-            <div class="input-group">
-                <input type="text" bind:value={wordInput} placeholder="Type in English or DE..." />
-                <button on:click={submit} disabled={loading} class="add-btn">+ Add</button>
-            </div>
+        <div class="flex gap-2">
+            <Input 
+                class="h-12 bg-white" 
+                placeholder="Add word (DE or EN)..." 
+                bind:value={wordInput} 
+                onkeydown={(e) => e.key === 'Enter' && submit()}
+            />
+            <Button class="h-12 px-6" onclick={submit} disabled={loading}>
+                {#if loading} <span class="animate-spin mr-2">...</span> {/if}
+                <Plus class="h-5 w-5 mr-1" /> Add
+            </Button>
         </div>
     </div>
 
-    <hr />
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <div class="lg:col-span-8 space-y-6">
+            <div class="flex items-center gap-4">
+                <h2 class="text-2xl font-bold tracking-tight">
+                    {activeGroupId === 'all' ? 'All Words' : 'Group View'}
+                </h2>
+                <div class="h-px flex-1 bg-border"></div>
+                <Badge variant="secondary">{filteredWords.length} Words</Badge>
+            </div>
 
-    <div class="main-layout">
-        <section class="word-list-section">
-            <h2>{activeGroupId === 'all' ? 'All Words' : 'Current View'}</h2>
-            <div class="word-grid">
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {#each filteredWords as word (word.id)}
-                    <button 
-                        class="word-card" 
-                        class:is-selected={manager.selectedIds.has(word.id)}
-                        on:click={() => manager.toggle(word.id)}
+                    <Card.Root 
+                        class="relative group cursor-pointer border-2 transition-all hover:border-blue-400 
+                        {manager.selectedIds.has(word.id) ? 'border-blue-600 bg-blue-50/50 shadow-md' : 'border-transparent bg-card'}"
                     >
-                        <span class="de">{word.german}</span>
-                        <span class="hover-en">{word.english}</span>
-                    </button>
+                        <div 
+                            role="button"
+                            tabindex="0"
+                            class="w-full h-full"
+                            onclick={() => manager.toggle(word.id)}
+                            onkeydown={(e) => e.key === 'Enter' && manager.toggle(word.id)}
+                        >
+                            <Card.Header class="p-4">
+                                <div class="flex justify-between items-start">
+                                    <span class="text-xl font-bold tracking-tight">{word.german}</span>
+                                    {#if manager.selectedIds.has(word.id)}
+                                        <CheckCircle2 class="h-5 w-5 text-blue-600" />
+                                    {/if}
+                                </div>
+                                <Card.Description class="text-base font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {word.english}
+                                </Card.Description>
+                            </Card.Header>
+                        </div>
+                    </Card.Root>
                 {:else}
-                    <p class="empty">No words found. Add some above!</p>
+                    <div class="col-span-full py-20 text-center border-2 border-dashed rounded-3xl text-muted-foreground">
+                        No words found. Time to add some!
+                    </div>
                 {/each}
             </div>
-        </section>
+        </div>
 
-        <div class="study-management">
-            <section class="groups-container">
-                <h2>Word Groups</h2>
-                
-                {#if manager.count > 0}
-                    <div class="inline-selection-tools">
-                        <div class="selection-count"><strong>{manager.count}</strong> selected</div>
-                        <div class="group-input-wrapper">
-                            <input 
-                                type="text" 
+        <aside class="lg:col-span-4 space-y-6">
+            
+            <Card.Root class="shadow-xl border-none bg-slate-900 text-white overflow-hidden">
+                <Card.Header>
+                    <Card.Title>Groups & Organization</Card.Title>
+                </Card.Header>
+                <Card.Content class="space-y-4">
+                    
+                    {#if manager.count > 0 || newGroupName.length > 0}
+                        <div class="bg-white/10 p-4 rounded-xl border border-white/20 space-y-3">
+                            <p class="text-sm font-bold text-blue-400">
+                                {manager.count} Words Selected
+                            </p>
+                            <Input 
+                                class="bg-white/5 border-white/20 text-white placeholder:text-white/40" 
+                                placeholder="Enter group name..." 
                                 bind:value={newGroupName} 
-                                placeholder="Group name..." 
-                                on:keydown={(e) => e.key === 'Enter' && handleSaveGroup()}
                             />
-                            <button class="save-grp-btn" on:click={handleSaveGroup} disabled={!newGroupName}>
-                                Save to Group
-                            </button>
+                            <div class="flex gap-2">
+                                <Button variant="secondary" class="flex-1 font-bold" onclick={() => {
+                                    manager.saveToGroup(newGroupName);
+                                    newGroupName = '';
+                                }}>
+                                    Create Group
+                                </Button>
+                                <Button variant="destructive" size="icon" onclick={() => manager.clear()}>
+                                    <Trash2 class="h-4 w-4" />
+                                </Button>
+                            </div>
                         </div>
-                        <div class="action-row">
-                            <button class="text-del-btn" on:click={() => manager.deleteSelected()}>Delete</button>
-                            <button class="text-clear-btn" on:click={() => manager.clear()}>Cancel</button>
-                        </div>
-                    </div>
-                {/if}
-
-                <div class="group-list">
-                    <button 
-                        class="group-chip" 
-                        class:active={activeGroupId === 'all'}
-                        on:click={() => activeGroupId = 'all'}
-                    >
-                        All Words
-                    </button>
-
-                    {#each $groupsStore as group}
-                        <div class="group-chip-wrapper">
-                            <button 
-                                class="group-chip" 
-                                class:active={activeGroupId === group.id}
-                                on:click={() => activeGroupId = group.id}
+                    {:else}
+                        <p class="text-xs text-white/40 italic text-center py-2">
+                            Click on word cards below to select them for a group.
+                        </p>
+                    {/if}
+            
+                    <div class="flex flex-wrap gap-2 pt-2 border-t border-white/10">
+                        <Button variant={activeGroupId === 'all' ? 'default' : 'outline'} size="sm" onclick={() => activeGroupId = 'all'}>All</Button>
+                        {#each $groupsStore as group}
+                            <Button 
+                                variant={activeGroupId === group.id ? 'default' : 'outline'} 
+                                size="sm" 
+                                class="text-xs"
+                                onclick={() => activeGroupId = group.id}
                             >
                                 {group.name}
-                            </button>
-                            
-                            {#if confirmingDeleteId === group.id}
-                                <button class="delete-group-btn confirm" on:click|stopPropagation={() => finalizeDelete(group.id)}>
-                                    OK?
-                                </button>
-                            {:else}
-                                <button class="delete-group-btn" on:click|stopPropagation={() => initiateDelete(group.id)}>
-                                    ×
-                                </button>
-                            {/if}
-                        </div>
-                    {/each}
-                </div>
-            </section>
+                            </Button>
+                        {/each}
+                    </div>
+                </Card.Content>
+            </Card.Root>
 
-            <section class="practice-arena-sidebar">
-                <h2>Practice Arena</h2>
-                <p class="small-note">Words in session: {filteredWords.length}</p>
-                
-                <div class="modes-grid">
-                    <section class="mode-card">
-                        <h3>Flashcards</h3>
-                        <a href="/dashboard/vocab/practice" on:click={() => launch('flashcards')}>
-                            <button class="launch-btn" disabled={filteredWords.length === 0}>Launch</button>
-                        </a>
-                    </section>
-
-                    <section class="mode-card">
-                        <h3>Quizzes</h3>
-                        <a href="/dashboard/vocab/practice" on:click={() => launch('quiz')}>
-                            <button class="launch-btn" disabled={filteredWords.length === 0}>Launch</button>
-                        </a>
-                    </section>
-
-                    <section class="mode-card">
-                        <h3>Spelling</h3>
-                        <a href="/dashboard/vocab/practice" on:click={() => launch('spelling')}>
-                            <button class="launch-btn" disabled={filteredWords.length === 0}>Launch</button>
-                        </a>
-                    </section>
-                </div>
-            </section>
-        </div>
+            <Card.Root class="shadow-lg border-2 border-blue-100">
+                <Card.Header>
+                    <Card.Title class="flex items-center gap-2">
+                        <Play class="h-5 w-5 text-blue-600" /> Practice Arena
+                    </Card.Title>
+                </Card.Header>
+                <Card.Content class="grid grid-cols-1 gap-3">
+                    <Button variant="outline" class="justify-between h-14" onclick={() => launch('flashcards')}>
+                        <span class="flex items-center gap-2"><Layers class="h-4 w-4" /> Flashcards</span>
+                        <span class="text-xs text-muted-foreground">→</span>
+                    </Button>
+                    <Button variant="outline" class="justify-between h-14" onclick={() => launch('quiz')}>
+                        <span class="flex items-center gap-2"><CheckCircle2 class="h-4 w-4" /> Quiz</span>
+                        <span class="text-xs text-muted-foreground">→</span>
+                    </Button>
+                    <Button variant="outline" class="justify-between h-14" onclick={() => launch('spelling')}>
+                        <span class="flex items-center gap-2"><SpellCheck class="h-4 w-4" /> Spelling</span>
+                        <span class="text-xs text-muted-foreground">→</span>
+                    </Button>
+                </Card.Content>
+            </Card.Root>
+        </aside>
     </div>
 </div>

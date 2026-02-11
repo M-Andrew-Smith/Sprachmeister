@@ -1,14 +1,11 @@
 <script lang="ts">
     import Navbar from '$lib/components/Navbar.svelte';
-    
-    // If you are using Svelte 5, uncomment the line below:
-    // let { children } = $props();
-</script>
-
-<div class="dashboard-shell">
+    let { children } = $props();
+  </script>
+  
+  <div class="min-h-screen bg-background">
     <Navbar />
-    
-    <main class="content-area">
-        <slot /> 
-        </main>
-</div>
+    <main class="animate-in fade-in duration-500">
+      {@render children()}
+    </main>
+  </div>
